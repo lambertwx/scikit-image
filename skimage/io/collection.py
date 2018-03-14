@@ -153,7 +153,7 @@ class ImageCollection(object):
 
     """
 
-    def __init__(self, load_pattern, conserve_memory=True, load_func=None,
+    def __init__(self, load_pattern, conserve_memory=True, check_files=True, load_func=None,
                  **load_func_kwargs):
         """Load and manage a collection of images."""
         if isinstance(load_pattern, six.string_types):
@@ -162,6 +162,7 @@ class ImageCollection(object):
             for pattern in load_pattern:
                 self._files.extend(glob(pattern))
             self._files = sorted(self._files, key=alphanumeric_key)
+            self._check_files = check_files
             self._numframes = self._find_images()
         else:
             self._files = load_pattern
@@ -202,21 +203,24 @@ class ImageCollection(object):
                     img = TiffFile(f)
                     index += [(fname, i) for i in range(len(img.pages))]
             else:
-                try:
-                    im = Image.open(fname)
-                    im.seek(0)
-                except (IOError, OSError):
-                    continue
-                i = 0
-                while True:
+                if self._check_files:
                     try:
-                        im.seek(i)
-                    except EOFError:
-                        break
-                    index.append((fname, i))
-                    i += 1
-                if hasattr(im, 'fp') and im.fp:
-                    im.fp.close()
+                        im = Image.open(fname)
+                        im.seek(0)
+                    except (IOError, OSError):
+                        continue
+                    i = 0
+                    while True:
+                        try:
+                            im.seek(i)
+                        except EOFError:
+                            break
+                        index.append((fname, i))
+                        i += 1
+                    if hasattr(im, 'fp') and im.fp:
+                        im.fp.close()
+                else:
+                    index.append((fname, 0))
         self._frame_index = index
         return len(index)
 
@@ -350,7 +354,7 @@ class ImageCollection(object):
 
 
 def imread_collection_wrapper(imread):
-    def imread_collection(load_pattern, conserve_memory=True):
+    def imread_collection(load_pattern, conserve_memory=True, check_files=True):
         """Return an `ImageCollection` from files matching the given pattern.
 
         Note that files are always stored in alphabetical order. Also note that
@@ -371,7 +375,7 @@ def imread_collection_wrapper(imread):
 
         """
         return ImageCollection(load_pattern, conserve_memory=conserve_memory,
-                               load_func=imread)
+                               check_files=check_files, load_func=imread )
     return imread_collection
 
 
